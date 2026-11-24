@@ -9,7 +9,7 @@ This is a NixOS module that runs [ProxySwitchboard](https://github.com/yueyinqiu
 - Every switch (different proxy, different credentials, back to direct) would mean editing config, rebuilding, and probably rebooting.
 - A proxy is often **personal and private** (e.g. your own Clash/V2Ray with credentials), while the NixOS config is usually shared and admin-maintained — private details don't belong there.
 
-So the NixOS side stays proxy-free and just runs a local proxy server. *Which* upstream to use is decided at runtime by any user in the `nix-daemon-proxy` group.
+So the NixOS side stays proxy-free and just runs a local proxy server. *Which* upstream to use is decided at runtime by any user in the `nix-daemon-proxy-switchboard` group.
 
 > **Caveat:** the *setting* is per-user, but the *effect* is global — there's only one `nix-daemon` per machine. While a proxy is active, other users building with that daemon go through it too. Unavoidable with a single shared daemon.
 
@@ -35,7 +35,7 @@ The flow is:
 
 1. An init one-shot service (as root) generates a random proxy password and writes a systemd **drop-in** for `nix-daemon.service` that sets `all_proxy`, `http_proxy` and `https_proxy` to the local proxy, then reloads and restarts `nix-daemon`.
 2. The server runs as a **DynamicUser** with no root; it reads the password from the environment and listens on `127.0.0.1:<port>` plus a Unix control socket.
-3. You run the **client** (the wrapped `nix-daemon-proxy` command), which talks to the control socket and tells the server which *upstream* to use (HTTP, SOCKS4 or SOCKS5).
+3. You run the **client** (the wrapped `nix-daemon-proxy-switchboard` command), which talks to the control socket and tells the server which *upstream* to use (HTTP, SOCKS4 or SOCKS5).
 4. The server switches its upstream, and everything `nix-daemon` does is proxied through the chosen upstream — instantly.
 5. When the server stops, it removes the drop-in and restarts `nix-daemon` to restore direct access.
 
@@ -85,39 +85,39 @@ Options under `services.nix-daemon-proxy-switchboard`:
 | Name | Type | Default | Description |
 | --- | --- | --- | --- |
 | `enable` | bool | `false` | Whether to run ProxySwitchboard as the proxy for `nix-daemon` |
-| `group` | str | `"nix-daemon-proxy"` | Group whose members can access the control socket |
+| `group` | str | `"nix-daemon-proxy-switchboard"` | Group whose members can access the control socket |
 | `proxyPort` | port | `62720` | TCP port the local proxy listens on (`127.0.0.1`) |
 | `packages.proxy-switchboard-server` | attrset | server (`install` default `false`) | The server package and whether to install it |
 | `packages.proxy-switchboard-client` | attrset | client (`install` default `false`) | The bare client package and whether to install it |
-| `packages.nix-daemon-proxy-client` | attrset | wrapper (`install` default `true`) | The wrapped client (a `nix-daemon-proxy` command) and whether to install it |
+| `packages.nix-daemon-proxy-switchboard-client` | attrset | wrapper (`install` default `true`) | The wrapped client (a `nix-daemon-proxy-switchboard` command) and whether to install it |
 
 Each `packages.*` entry takes:
 
 | Name | Type | Default | Description |
 | --- | --- | --- | --- |
-| `package` | package | from `ProxySwitchboard-Nix` (generated for `nix-daemon-proxy-client`) | The package to use |
-| `install` | bool | `false` (`true` for `nix-daemon-proxy-client`) | Whether to add it to `environment.systemPackages` |
+| `package` | package | from `ProxySwitchboard-Nix` (generated for `nix-daemon-proxy-switchboard-client`) | The package to use |
+| `install` | bool | `false` (`true` for `nix-daemon-proxy-switchboard-client`) | Whether to add it to `environment.systemPackages` |
 
 The proxy password is generated randomly by the init service on every start of the server.
 
 ## Usage
 
-The module installs a wrapped client named `nix-daemon-proxy` with the control socket already preset. It talks to the server over the control socket, so **you must be a member of the `nix-daemon-proxy` group**:
+The module installs a wrapped client named `nix-daemon-proxy-switchboard` with the control socket already preset. It talks to the server over the control socket, so **you must be a member of the `nix-daemon-proxy-switchboard` group**:
 
 ```nix
-users.users.<your-user>.extraGroups = [ "nix-daemon-proxy" ];
+users.users.<your-user>.extraGroups = [ "nix-daemon-proxy-switchboard" ];
 ```
 
 Then switch the upstream:
 
 ```sh
-nix-daemon-proxy http   -H 127.0.0.1 -P 7890        # HTTP(S) proxy
-nix-daemon-proxy socks5 -H 192.168.1.2 -P 1080     # SOCKS5 proxy
-nix-daemon-proxy direct                            # back to direct access
-nix-daemon-proxy status                            # show the current upstream
+nix-daemon-proxy-switchboard http   -H 127.0.0.1 -P 7890        # HTTP(S) proxy
+nix-daemon-proxy-switchboard socks5 -H 192.168.1.2 -P 1080     # SOCKS5 proxy
+nix-daemon-proxy-switchboard direct                            # back to direct access
+nix-daemon-proxy-switchboard status                            # show the current upstream
 ```
 
-The full command set (`http`, `socks5`, `direct`, `from-json`, `status`) and their options are documented in the [ProxySwitchboard README](https://github.com/yueyinqiu/ProxySwitchboard#usage) — the same commands apply, just under the `nix-daemon-proxy` name (and without needing `--control-socket`, which is preset).
+The full command set (`http`, `socks5`, `direct`, `from-json`, `status`) and their options are documented in the [ProxySwitchboard README](https://github.com/yueyinqiu/ProxySwitchboard#usage) — the same commands apply, just under the `nix-daemon-proxy-switchboard` name (and without needing `--control-socket`, which is preset).
 
 > **Security:** never pass a password on the command line — options like `-p` show up in `ps`. Use the `PROXY_SWITCHBOARD_ARGUMENT_PASSWORD` environment variable, or `from-json` (which reads credentials from stdin).
 
@@ -125,7 +125,7 @@ The full command set (`http`, `socks5`, `direct`, `from-json`, `status`) and the
 
 - The local proxy binds `127.0.0.1` and requires Basic auth; only the server knows the random password.
 - The proxy password and the `nix-daemon` drop-in (which contains it) are written root-only (`600`) under a runtime directory; the drop-in and password are removed when the server stops.
-- Access to the control socket is restricted to the `nix-daemon-proxy` group — the socket and its directory only grant that group (no others), so only members can switch the upstream.
+- Access to the control socket is restricted to the `nix-daemon-proxy-switchboard` group — the socket and its directory only grant that group (no others), so only members can switch the upstream.
 - The server itself runs as a `DynamicUser` with no root privileges; the privileged steps (generating the password, writing the drop-in, restarting `nix-daemon`) are done by a separate root one-shot service.
 
 ## Rescue: proxy switched but not working
@@ -135,13 +135,13 @@ This should be next to impossible, but just in case: the server stops working bu
 The proxy only reaches `nix-daemon` through a runtime systemd **drop-in**. Normally, stopping the server is enough — its stop hook removes the drop-in and restarts `nix-daemon` to restore direct access:
 
 ```sh
-sudo systemctl stop nix-daemon-proxy-server
+sudo systemctl stop nix-daemon-proxy-switchboard-server
 ```
 
 If systemd itself is misbehaving and that hook didn't run, you can remove the drop-in by hand — it is just a file under `/run`:
 
 ```sh
-sudo rm -f /run/systemd/system/nix-daemon.service.d/nix-daemon-proxy.conf
+sudo rm -f /run/systemd/system/nix-daemon.service.d/nix-daemon-proxy-switchboard.conf
 sudo systemctl daemon-reload
 sudo systemctl restart nix-daemon
 ```

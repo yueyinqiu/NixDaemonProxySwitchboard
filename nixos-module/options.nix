@@ -9,7 +9,7 @@
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "nix-daemon-proxy";
+      default = "nix-daemon-proxy-switchboard";
       description = "Group whose members get read/write access to the control socket.";
     };
 
@@ -45,10 +45,10 @@
       };
     };
 
-    packages.nix-daemon-proxy-client = {
+    packages.nix-daemon-proxy-switchboard-client = {
       package = lib.mkOption {
         type = lib.types.package;
-        description = "The client wrapper package (a `nix-daemon-proxy` command with the control socket preset). Override to supply your own.";
+        description = "The client wrapper package (a `nix-daemon-proxy-switchboard` command with the control socket preset). Override to supply your own.";
       };
       install = lib.mkOption {
         type = lib.types.bool;

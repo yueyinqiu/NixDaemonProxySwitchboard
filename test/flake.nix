@@ -31,7 +31,7 @@
             # a group member used to verify socket access vs. password confidentiality
             users.users.alice = {
               isNormalUser = true;
-              extraGroups = [ "nix-daemon-proxy" ];
+              extraGroups = [ "nix-daemon-proxy-switchboard" ];
             };
           };
 

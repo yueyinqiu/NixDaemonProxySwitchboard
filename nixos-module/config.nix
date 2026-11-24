@@ -6,7 +6,7 @@
 let
   cfg = config.services.nix-daemon-proxy-switchboard;
 
-  serviceDirectoryName = "nix-daemon-proxy";
+  serviceDirectoryName = "nix-daemon-proxy-switchboard";
   runtimeDirectoryName = "run";
 
   serviceDirectory = "/run/${serviceDirectoryName}";
@@ -14,10 +14,10 @@ let
   environmentFile = "${serviceDirectory}/secret";
 
   dropInDirectory = "/run/systemd/system/nix-daemon.service.d";
-  dropInFile = "${dropInDirectory}/nix-daemon-proxy.conf";
+  dropInFile = "${dropInDirectory}/nix-daemon-proxy-switchboard.conf";
 
   initScript = pkgs.writeShellApplication {
-    name = "nix-daemon-proxy-init";
+    name = "nix-daemon-proxy-switchboard-init";
     runtimeInputs = [
       pkgs.openssl
       pkgs.coreutils
@@ -48,7 +48,7 @@ let
   };
 
   cleanupScript = pkgs.writeShellApplication {
-    name = "nix-daemon-proxy-cleanup";
+    name = "nix-daemon-proxy-switchboard-cleanup";
     runtimeInputs = [
       pkgs.coreutils
       pkgs.systemd
@@ -63,25 +63,25 @@ in
 {
   users.groups.${cfg.group} = { };
 
-  services.nix-daemon-proxy-switchboard.packages.nix-daemon-proxy-client.package = lib.mkDefault (
-    pkgs.runCommand "nix-daemon-proxy" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+  services.nix-daemon-proxy-switchboard.packages.nix-daemon-proxy-switchboard-client.package = lib.mkDefault (
+    pkgs.runCommand "nix-daemon-proxy-switchboard" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
       mkdir -p "$out/bin"
-      makeWrapper ${lib.getExe cfg.packages.proxy-switchboard-client.package} "$out/bin/nix-daemon-proxy" \
+      makeWrapper ${lib.getExe cfg.packages.proxy-switchboard-client.package} "$out/bin/nix-daemon-proxy-switchboard" \
         --set-default PROXY_SWITCHBOARD_ARGUMENT_CONTROL_SOCKET ${lib.escapeShellArg controlSocket} \
-        --set PROXY_SWITCHBOARD_TITLE nix-daemon-proxy \
-        --set PROXY_SWITCHBOARD_EXECUTABLE_NAME nix-daemon-proxy
+        --set PROXY_SWITCHBOARD_TITLE nix-daemon-proxy-switchboard \
+        --set PROXY_SWITCHBOARD_EXECUTABLE_NAME nix-daemon-proxy-switchboard
     ''
   );
 
   environment.systemPackages =
     (lib.optional cfg.packages.proxy-switchboard-server.install cfg.packages.proxy-switchboard-server.package)
     ++ (lib.optional cfg.packages.proxy-switchboard-client.install cfg.packages.proxy-switchboard-client.package)
-    ++ (lib.optional cfg.packages.nix-daemon-proxy-client.install cfg.packages.nix-daemon-proxy-client.package);
+    ++ (lib.optional cfg.packages.nix-daemon-proxy-switchboard-client.install cfg.packages.nix-daemon-proxy-switchboard-client.package);
 
-  systemd.services.nix-daemon-proxy-init = {
+  systemd.services.nix-daemon-proxy-switchboard-init = {
     description = "Prepare the proxy switchboard password and nix-daemon configuration";
-    before = [ "nix-daemon-proxy-server.service" ];
-    requiredBy = [ "nix-daemon-proxy-server.service" ];
+    before = [ "nix-daemon-proxy-switchboard-server.service" ];
+    requiredBy = [ "nix-daemon-proxy-switchboard-server.service" ];
 
     serviceConfig = {
       Type = "oneshot";
@@ -89,7 +89,7 @@ in
     };
   };
 
-  systemd.services.nix-daemon-proxy-server = {
+  systemd.services.nix-daemon-proxy-switchboard-server = {
     description = "ProxySwitchboard (upstream for nix-daemon)";
     wantedBy = [ "multi-user.target" ];
 
